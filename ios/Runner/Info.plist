@@ -74,10 +74,8 @@
 	<key>NSFaceIDUsageDescription</key>
 	<string>Allow the Solar Network verify your ownership of the logged in account and continue
 			your action quickly.</string>
-	<key>NSHealthShareUsageDescription</key>
-	<string>Allow us to share your fitness data with your friends.</string>
-	<key>NSHealthUpdateUsageDescription</key>
-	<string>Allow us to update your fitness data with your friends.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Location is used to fill in meet places from your current position.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Grant access to Microphone will allow Solian record audio for your post.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>

@@ -3,6 +3,7 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  bluetooth_low_energy_windows
   connectivity_plus
   dart_ipc
   desktop_drop
@@ -13,9 +14,11 @@ list(APPEND FLUTTER_PLUGIN_LIST
   flutter_inappwebview_windows
   flutter_secure_storage_windows
   flutter_timezone
+  flutter_tts
   flutter_udid
   flutter_webrtc
   gal
+  geolocator_windows
   hotkey_manager_windows
   irondash_engine_context
   livekit_client
