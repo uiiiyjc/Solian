@@ -165,6 +165,7 @@ class ChatRoomScreen extends HookConsumerWidget {
     final prefs = ref.read(sharedPreferencesProvider);
     final lastReadAnchorMessageId = useState<String?>(null);
     final isAtLatestMessages = useState(false);
+    final collapsedBotGroupIds = useState<Set<String>>({});
     final wasAtLatestMessagesRef = useRef(false);
     final previousNewestMessageIdRef = useRef<String?>(null);
     final pendingAnchorUpdateFromSendRef = useRef(false);
@@ -206,14 +207,17 @@ class ChatRoomScreen extends HookConsumerWidget {
     }, [id]);
 
     useEffect(() {
-      // Room presence is polled in room scope for call state and DM/member status.
-      ref.invalidate(chatOnlineCountProvider(id));
-      ref.invalidate(activeCallParticipantCountProvider(id));
-      ref.invalidate(activeCallParticipantsProvider(id));
-      final timer = Timer.periodic(const Duration(minutes: 1), (_) {
+      Future.microtask(() {
         ref.invalidate(chatOnlineCountProvider(id));
         ref.invalidate(activeCallParticipantCountProvider(id));
         ref.invalidate(activeCallParticipantsProvider(id));
+      });
+      final timer = Timer.periodic(const Duration(minutes: 1), (_) {
+        Future.microtask(() {
+          ref.invalidate(chatOnlineCountProvider(id));
+          ref.invalidate(activeCallParticipantCountProvider(id));
+          ref.invalidate(activeCallParticipantsProvider(id));
+        });
       });
       return timer.cancel;
     }, [id]);
@@ -297,14 +301,14 @@ class ChatRoomScreen extends HookConsumerWidget {
     }, [messagesNotifier]);
 
     useEffect(() {
+      final currentSubscribed = ref.read(currentSubscribedChatIdProvider);
       return () {
         Future.microtask(() {
-          final currentSubscribed = ref.read(currentSubscribedChatIdProvider);
           if (currentSubscribed == id) {
             ref.read(currentSubscribedChatIdProvider.notifier).set(null);
           }
         });
-        Future.microtask(saveLastReadAnchor);
+        saveLastReadAnchor();
       };
     }, []);
 
@@ -369,12 +373,6 @@ class ChatRoomScreen extends HookConsumerWidget {
     final inputManager = useRoomInputManager(ref, id);
     final roomOpenTime = useMemoized(() => DateTime.now());
 
-    final previousInputHeightRef = useRef<double?>(null);
-    useEffect(() {
-      previousInputHeightRef.value = inputHeight.value;
-      return null;
-    }, [inputHeight.value]);
-
     final hasTrackedInputHeight = useRef(false);
     useEffect(() {
       if (hasTrackedInputHeight.value) return;
@@ -396,6 +394,15 @@ class ChatRoomScreen extends HookConsumerWidget {
 
     final isSelectionMode = useState<bool>(false);
     final selectedMessages = useState<Set<String>>({});
+
+    final toggleBotGroup = useCallback((String groupId) {
+      final current = collapsedBotGroupIds.value;
+      if (current.contains(groupId)) {
+        collapsedBotGroupIds.value = Set.from(current)..remove(groupId);
+      } else {
+        collapsedBotGroupIds.value = Set.from(current)..add(groupId);
+      }
+    }, []);
 
     final toggleSelectionMode = useCallback(() {
       isSelectionMode.value = !isSelectionMode.value;
@@ -675,13 +682,14 @@ class ChatRoomScreen extends HookConsumerWidget {
                                 onJump: onJump,
                                 attachmentProgress:
                                     inputManager.attachmentProgress,
-                                previousInputHeight:
-                                    previousInputHeightRef.value,
                                 roomOpenTime: roomOpenTime,
                                 lastReadAnchorMessageId:
                                     visibleLastReadAnchorMessageId,
                                 onFollowBack: jumpToLastReadAnchor,
                                 disableAnimation: settings.disableAnimation,
+                                collapsedBotGroupIds:
+                                    collapsedBotGroupIds.value,
+                                toggleBotGroup: toggleBotGroup,
                               ),
                         loading: () => Center(
                           key: ValueKey('loading-messages'),

@@ -2,8 +2,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:island/core/config.dart';
-import 'package:island/core/network.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
@@ -25,30 +23,42 @@ class UniversalVideo extends ConsumerStatefulWidget {
 class _UniversalVideoState extends ConsumerState<UniversalVideo> {
   Player? _player;
   VideoController? _videoController;
+  bool _isInitialLoading = true;
 
-  void _openVideo() async {
+  @override
+  void initState() {
+    super.initState();
+    _initPlayer();
+  }
+
+  void _initPlayer() {
     MediaKit.ensureInitialized();
 
     _player = Player();
     _videoController = VideoController(_player!);
 
-    final serverUrl = ref.read(serverUrlProvider);
-    final token = ref.read(tokenProvider);
-    final Map<String, String>? httpHeaders =
-        widget.uri.startsWith(serverUrl) && token != null
-        ? {'Authorization': 'Bearer ${token.token}'}
-        : null;
+    _player!.stream.playing.listen((playing) {
+      if (mounted && playing) {
+        setState(() => _isInitialLoading = false);
+      }
+    });
 
-    _player!.open(
-      Media(widget.uri, httpHeaders: httpHeaders),
-      play: widget.autoplay,
-    );
-  }
+    _player!.stream.buffering.listen((buffering) {
+      if (mounted && buffering) {
+        setState(() => _isInitialLoading = true);
+      } else if (mounted && !buffering && _player!.state.playing) {
+        setState(() => _isInitialLoading = false);
+      }
+    });
 
-  @override
-  void initState() {
-    super.initState();
-    _openVideo();
+    _player!.stream.error.listen((error) {
+      debugPrint('Video player error: $error');
+      if (mounted) {
+        setState(() => _isInitialLoading = false);
+      }
+    });
+
+    _player!.open(Media(widget.uri), play: widget.autoplay);
   }
 
   @override
@@ -60,16 +70,101 @@ class _UniversalVideoState extends ConsumerState<UniversalVideo> {
   @override
   Widget build(BuildContext context) {
     if (_videoController == null) {
-      return Center(child: CircularProgressIndicator());
+      return Container(
+        color: Colors.black,
+        child: const Center(child: CircularProgressIndicator()),
+      );
     }
 
-    return Video(
+    final isMobile = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
+
+    Widget video = Video(
       controller: _videoController!,
       aspectRatio: widget.aspectRatio != 1 ? widget.aspectRatio : null,
       fit: BoxFit.contain,
-      controls: !kIsWeb && (Platform.isAndroid || Platform.isIOS)
-          ? MaterialVideoControls
-          : MaterialDesktopVideoControls,
+      controls: isMobile ? MaterialVideoControls : MaterialDesktopVideoControls,
+    );
+
+    if (isMobile) {
+      video = MaterialVideoControlsTheme(
+        normal: MaterialVideoControlsThemeData(
+          visibleOnMount: true,
+          controlsHoverDuration: const Duration(hours: 1),
+          seekBarPositionColor: primaryColor,
+          seekBarColor: primaryColor.withValues(alpha: 0.3),
+          seekBarBufferColor: primaryColor.withValues(alpha: 0.5),
+          bottomButtonBar: [
+            const MaterialPlayOrPauseButton(),
+            const MaterialSeekBar(),
+            const MaterialSkipNextButton(),
+          ],
+        ),
+        fullscreen: MaterialVideoControlsThemeData(
+          visibleOnMount: true,
+          controlsHoverDuration: const Duration(hours: 1),
+          seekBarPositionColor: primaryColor,
+          seekBarColor: primaryColor.withValues(alpha: 0.3),
+          seekBarBufferColor: primaryColor.withValues(alpha: 0.5),
+          seekBarThumbColor: primaryColor,
+          bottomButtonBar: [
+            const MaterialPlayOrPauseButton(),
+            const MaterialSeekBar(),
+            const MaterialSkipNextButton(),
+          ],
+        ),
+        child: video,
+      );
+    } else {
+      video = MaterialDesktopVideoControlsTheme(
+        normal: MaterialDesktopVideoControlsThemeData(
+          visibleOnMount: true,
+          controlsHoverDuration: const Duration(hours: 1),
+          seekBarPositionColor: primaryColor,
+          seekBarColor: primaryColor.withValues(alpha: 0.3),
+          seekBarBufferColor: primaryColor.withValues(alpha: 0.5),
+          seekBarThumbColor: primaryColor,
+          bottomButtonBar: const [
+            MaterialDesktopSkipPreviousButton(),
+            MaterialDesktopPlayOrPauseButton(),
+            MaterialDesktopSkipNextButton(),
+            MaterialDesktopVolumeButton(),
+            MaterialDesktopPositionIndicator(),
+            Spacer(),
+          ],
+        ),
+        fullscreen: MaterialDesktopVideoControlsThemeData(
+          visibleOnMount: true,
+          controlsHoverDuration: const Duration(hours: 1),
+          seekBarPositionColor: primaryColor,
+          seekBarColor: primaryColor.withValues(alpha: 0.3),
+          seekBarBufferColor: primaryColor.withValues(alpha: 0.5),
+          seekBarThumbColor: primaryColor,
+          bottomButtonBar: const [
+            MaterialDesktopSkipPreviousButton(),
+            MaterialDesktopPlayOrPauseButton(),
+            MaterialDesktopSkipNextButton(),
+            MaterialDesktopVolumeButton(),
+            MaterialDesktopPositionIndicator(),
+            Spacer(),
+          ],
+        ),
+        child: video,
+      );
+    }
+
+    return Stack(
+      children: [
+        video,
+        if (_isInitialLoading)
+          Positioned.fill(
+            child: Container(
+              color: Colors.black54,
+              child: const Center(child: CircularProgressIndicator()),
+            ),
+          ),
+      ],
     );
   }
 }

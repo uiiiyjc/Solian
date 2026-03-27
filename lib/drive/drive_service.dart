@@ -8,6 +8,8 @@ import 'package:cross_file/cross_file.dart';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:island/core/config.dart';
 import 'package:island/core/database.dart';
 import 'package:island/core/network.dart';
 import 'package:island/drive/screens/upload_tasks.dart';
@@ -657,6 +659,39 @@ class FileUploader {
     );
   }
 
+  Future<Map<String, dynamic>> getUploadProgress(String taskId) async {
+    final response = await _client.get(
+      '/drive/files/upload/progress/$taskId',
+      options: Options(
+        sendTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+      ),
+    );
+    return Map<String, dynamic>.from(response.data);
+  }
+
+  Future<SnCloudFile> _waitForUploadComplete(String taskId) async {
+    while (true) {
+      final progress = await getUploadProgress(taskId);
+      final status = progress['status']?.toString();
+
+      if (status == 'Completed') {
+        final file = progress['file'];
+        if (file is Map) {
+          return SnCloudFile.fromJson(Map<String, dynamic>.from(file));
+        }
+        throw const FormatException('Upload completed but no file data found.');
+      }
+
+      if (status == 'Failed') {
+        final error = progress['error']?.toString() ?? 'Upload failed';
+        throw Exception(error);
+      }
+
+      await Future.delayed(const Duration(seconds: 1));
+    }
+  }
+
   /// Completes the upload and returns the CloudFile object.
   Future<SnCloudFile> completeUpload(String taskId) async {
     final stepTimer = Stopwatch()..start();
@@ -671,6 +706,10 @@ class FileUploader {
     debugPrint(
       '[DriveUpload] Complete upload request took: ${stepTimer.elapsedMilliseconds}ms',
     );
+
+    if (response.statusCode == 202) {
+      return _waitForUploadComplete(taskId);
+    }
 
     return SnCloudFile.fromJson(response.data);
   }
@@ -1194,7 +1233,38 @@ class FileDownloadService {
     }
   }
 
+  String _getOriginalUrl(SnCloudFile item, {String? serverUrl}) {
+    if (serverUrl != null && item.url == null) {
+      return '$serverUrl/drive/files/${item.id}?original=true';
+    }
+    final baseUri = item.url ?? '/drive/files/${item.id}';
+    return baseUri.contains('?')
+        ? '$baseUri&original=true'
+        : '$baseUri?original=true';
+  }
+
+  Future<String?> _getCachedOriginalFile(SnCloudFile item) async {
+    try {
+      final serverUrl = ref.read(serverUrlProvider);
+      final url = _getOriginalUrl(item, serverUrl: serverUrl);
+      final fileInfo = await DefaultCacheManager().getFileFromCache(url);
+      if (fileInfo != null && await File(fileInfo.file.path).exists()) {
+        return fileInfo.file.path;
+      }
+    } catch (_) {}
+    return null;
+  }
+
   Future<String> _downloadToTemp(SnCloudFile item, String extName) async {
+    final cachedPath = await _getCachedOriginalFile(item);
+    if (cachedPath != null) {
+      final tempDir = await getTemporaryDirectory();
+      final filePath = '${tempDir.path}/${item.id}.$extName';
+      await File(cachedPath).copy(filePath);
+      await _tryDecryptDownloadedFile(filePath, item);
+      return filePath;
+    }
+
     final client = ref.read(apiClientProvider);
     final tempDir = await getTemporaryDirectory();
     final filePath = '${tempDir.path}/${item.id}.$extName';

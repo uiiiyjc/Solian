@@ -10,17 +10,16 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:gap/gap.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:island/accounts/widgets/account/account_name.dart';
-import 'package:island/accounts/widgets/account/activity_presence.dart';
 import 'package:island/accounts/widgets/account/badge.dart';
 import 'package:island/accounts/widgets/account/fortune_graph.dart';
 import 'package:island/accounts/widgets/account/leveling_progress.dart';
 import 'package:island/accounts/widgets/account/status.dart';
+import 'package:island/accounts/widgets/account/activity_presence.dart';
+import 'package:island/accounts/screens/profile_timeline.dart';
 import 'package:island/developers/models/developer.dart';
-import 'package:island/core/config.dart';
 import 'package:island/accounts/event_calendar.dart';
 import 'package:island/core/network.dart';
 import 'package:island/accounts/account_pod.dart';
-import 'package:island/core/services/color.dart';
 import 'package:island/core/services/responsive.dart';
 import 'package:island/core/utils/text.dart';
 import 'package:island/core/services/time.dart';
@@ -28,12 +27,10 @@ import 'package:island/core/services/timezone/native.dart';
 import 'package:island/route.gr.dart';
 import 'package:island/shared/widgets/alert.dart';
 import 'package:island/shared/widgets/app_scaffold.dart' hide PageBackButton;
-import 'package:island/shared/widgets/pagination_list.dart';
 import 'package:island/drive/widgets/cloud_files.dart';
 import 'package:island/shared/widgets/content/markdown.dart';
 import 'package:island/tickets/widgets/ticket_fire.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import 'package:island/core/services/color_extraction.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:styled_widget/styled_widget.dart';
@@ -42,7 +39,7 @@ import 'package:solar_network_sdk/solar_network_sdk.dart';
 
 part 'profile.g.dart';
 
-class _AccountBasicInfo extends StatelessWidget {
+class _AccountBasicInfo extends HookWidget {
   final SnAccount data;
   final String uname;
   final AsyncValue<SnDeveloper?> accountDeveloper;
@@ -53,252 +50,256 @@ class _AccountBasicInfo extends StatelessWidget {
     required this.accountDeveloper,
   });
 
+  String _getFirstLine(String bio) {
+    final lines = bio.split('\n');
+    if (lines.isEmpty) return '';
+    return lines.first.trim();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isBioExpanded = useState(false);
     final theme = Theme.of(context);
-    final hasBackground = data.profile.background != null;
-    final showBackground = isWideScreen(context) && hasBackground;
 
     return Card(
       margin: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (showBackground)
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(12),
-                  ),
-                  child: AspectRatio(
-                    aspectRatio: 16 / 7,
-                    child: CloudImageWidget(
-                      file: data.profile.background,
-                      fit: BoxFit.cover,
-                    ),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(12),
+                ),
+                child: AspectRatio(
+                  aspectRatio: 16 / 7,
+                  child: CloudImageWidget(
+                    file: data.profile.background,
+                    fit: BoxFit.cover,
                   ),
                 ),
-                Positioned(
-                  bottom: -24,
-                  left: 16,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: theme.colorScheme.surface,
-                        width: 3,
-                      ),
-                    ),
-                    child: ProfilePictureWidget(
-                      file: data.profile.picture,
-                      radius: 32,
+              ),
+              Positioned(
+                bottom: -24,
+                left: 16,
+                child: Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: theme.colorScheme.surface,
+                      width: 3,
                     ),
                   ),
+                  child: ProfilePictureWidget(
+                    file: data.profile.picture,
+                    radius: 32,
+                  ),
                 ),
-              ],
-            ),
+              ),
+            ],
+          ),
           Padding(
-            padding: EdgeInsets.all(showBackground ? 16 : 20),
+            padding: EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (!showBackground)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: Center(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: theme.colorScheme.outline.withOpacity(0.2),
-                            width: 2,
-                          ),
-                        ),
-                        child: ProfilePictureWidget(
-                          file: data.profile.picture,
-                          radius: 40,
-                        ),
-                      ),
-                    ),
-                  ),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                Column(
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Gap(12),
-                          Row(
-                            spacing: 8,
-                            crossAxisAlignment: CrossAxisAlignment.baseline,
-                            textBaseline: TextBaseline.alphabetic,
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Flexible(
-                                child: AccountName(
-                                  account: data,
-                                  style: theme.textTheme.bodyLarge?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color:
-                                      theme.colorScheme.surfaceContainerHighest,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  '@${data.name}',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const Gap(4),
-                          AccountStatusWidget(
-                            uname: uname,
-                            padding: EdgeInsets.zero,
-                          ),
-                          if (accountDeveloper.value != null) ...[
-                            const Gap(12),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.secondaryContainer
-                                    .withOpacity(0.5),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
+                              const Gap(12),
+                              Row(
                                 spacing: 8,
+                                crossAxisAlignment: CrossAxisAlignment.baseline,
+                                textBaseline: TextBaseline.alphabetic,
                                 children: [
-                                  Icon(
-                                    Symbols.smart_toy,
-                                    size: 18,
-                                    color:
-                                        theme.colorScheme.onSecondaryContainer,
-                                  ),
-                                  Text(
-                                    'botAutomatedBy'.tr(
-                                      args: [
-                                        accountDeveloper.value!.publisher!.nick,
-                                      ],
+                                  Flexible(
+                                    child: AccountName(
+                                      account: data,
+                                      style: theme.textTheme.bodyLarge
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                          ),
                                     ),
-                                    style: theme.textTheme.bodySmall?.copyWith(
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
                                       color: theme
                                           .colorScheme
-                                          .onSecondaryContainer,
+                                          .surfaceContainerHighest,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      '@${data.name}',
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
                                     ),
                                   ),
                                 ],
                               ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: IconButton(
-                        onPressed: () {
-                          SharePlus.instance.share(
-                            ShareParams(
-                              uri: Uri.parse(
-                                'https://solian.app/@${data.name}',
+                              const Gap(4),
+                              AccountStatusWidget(
+                                uname: uname,
+                                padding: EdgeInsets.zero,
                               ),
-                            ),
-                          );
-                        },
-                        icon: Icon(
-                          Symbols.share,
-                          color: theme.colorScheme.primary,
+                              const Gap(8),
+                              ActivityPresenceWidget(
+                                uname: uname,
+                                isCompact: true,
+                                compactPadding: EdgeInsets.zero,
+                              ),
+                              if (accountDeveloper.value != null) ...[
+                                const Gap(12),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.secondaryContainer
+                                        .withOpacity(0.5),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    spacing: 8,
+                                    children: [
+                                      Icon(
+                                        Symbols.smart_toy,
+                                        size: 18,
+                                        color: theme
+                                            .colorScheme
+                                            .onSecondaryContainer,
+                                      ),
+                                      Text(
+                                        'botAutomatedBy'.tr(
+                                          args: [
+                                            accountDeveloper
+                                                .value!
+                                                .publisher!
+                                                .nick,
+                                          ],
+                                        ),
+                                        style: theme.textTheme.bodySmall
+                                            ?.copyWith(
+                                              color: theme
+                                                  .colorScheme
+                                                  .onSecondaryContainer,
+                                            ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
                         ),
-                      ),
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: IconButton(
+                            onPressed: () {
+                              SharePlus.instance.share(
+                                ShareParams(
+                                  uri: Uri.parse(
+                                    'https://solian.app/@${data.name}',
+                                  ),
+                                ),
+                              );
+                            },
+                            icon: Icon(
+                              Symbols.share,
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
+                // Collapsible Bio Section
+                if (data.profile.bio.isNotEmpty) ...[
+                  const Gap(12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 200),
+                              child: isBioExpanded.value
+                                  ? MarkdownTextContent(
+                                      key: const ValueKey('expanded'),
+                                      content: data.profile.bio,
+                                      linesMargin: EdgeInsets.zero,
+                                    )
+                                  : Text(
+                                      _getFirstLine(data.profile.bio),
+                                      key: const ValueKey('collapsed'),
+                                    ),
+                            ).alignment(Alignment.centerLeft),
+                          ),
+                          InkWell(
+                            onTap: () {
+                              isBioExpanded.value = !isBioExpanded.value;
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                              ),
+                              child: Text(
+                                isBioExpanded.value
+                                    ? 'collapse'.tr()
+                                    : 'expand'.tr(),
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  color: theme.colorScheme.primary,
+                                ),
+                              ).tr(),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+                // Links
+                if (data.profile.links.isNotEmpty)
+                  Column(
+                    spacing: 8,
+                    children: data.profile.links
+                        .map(
+                          (link) => _LinkCard(
+                            name: link.name.capitalizeEachWord(),
+                            url: link.url,
+                          ),
+                        )
+                        .toList(),
+                  ).padding(top: 12),
               ],
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _AccountProfileBio extends StatelessWidget {
-  final SnAccount data;
-
-  const _AccountProfileBio({required this.data});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    Symbols.article,
-                    size: 18,
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-                const Gap(12),
-                Text(
-                  'bio',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ).tr(),
-              ],
-            ),
-            const Gap(16),
-            if (data.profile.bio.isEmpty)
-              Text(
-                'descriptionNone',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  fontStyle: FontStyle.italic,
-                ),
-              ).tr()
-            else
-              MarkdownTextContent(
-                content: data.profile.bio,
-                linesMargin: EdgeInsets.zero,
-              ),
-          ],
-        ),
       ),
     );
   }
@@ -548,65 +549,6 @@ class _DetailChip extends StatelessWidget {
   }
 }
 
-class _AccountProfileLinks extends StatelessWidget {
-  final SnAccount data;
-
-  const _AccountProfileLinks({required this.data});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    Symbols.link,
-                    size: 18,
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-                const Gap(12),
-                Text(
-                  'links',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ).tr(),
-              ],
-            ),
-            const Gap(12),
-            Column(
-              spacing: 8,
-              children: data.profile.links
-                  .map(
-                    (link) => _LinkCard(
-                      name: link.name.capitalizeEachWord(),
-                      url: link.url,
-                    ),
-                  )
-                  .toList(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _LinkCard extends StatelessWidget {
   final String name;
   final String url;
@@ -625,53 +567,29 @@ class _LinkCard extends StatelessWidget {
           launchUrlString(url);
         }
       },
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(8),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primaryContainer.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                Symbols.open_in_new,
-                size: 18,
-                color: theme.colorScheme.primary,
-              ),
-            ),
-            const Gap(12),
+            Icon(Symbols.link, size: 16, color: theme.colorScheme.primary),
+            const Gap(8),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    name,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const Gap(2),
-                  Text(
-                    url,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+              child: Text(
+                name,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             Icon(
               Symbols.arrow_outward,
-              size: 18,
+              size: 14,
               color: theme.colorScheme.onSurfaceVariant,
             ),
           ],
@@ -1091,299 +1009,6 @@ class _AccountAction extends StatelessWidget {
   }
 }
 
-class _AccountTimelineWidget extends StatelessWidget {
-  final String uname;
-
-  const _AccountTimelineWidget({required this.uname});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    Symbols.timeline,
-                    size: 18,
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-                const Gap(12),
-                Text(
-                  'timeline',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ).tr(),
-              ],
-            ),
-            const Gap(16),
-            _AccountTimelineList(uname: uname),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _AccountTimelineList extends ConsumerWidget {
-  final String uname;
-
-  const _AccountTimelineList({required this.uname});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return PaginationList<SnAccountTimelineItem>(
-      provider: accountTimelineProvider(uname),
-      notifier: accountTimelineProvider(uname).notifier,
-      spacing: 8,
-      padding: EdgeInsets.zero,
-      footerSkeletonChild: Container(
-        height: 60,
-        decoration: BoxDecoration(
-          color: Theme.of(
-            context,
-          ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
-      itemBuilder: (context, idx, item) {
-        return _AccountTimelineItem(item: item);
-      },
-    );
-  }
-}
-
-class _AccountTimelineItem extends StatelessWidget {
-  final SnAccountTimelineItem item;
-
-  const _AccountTimelineItem({required this.item});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return item.when(
-      statusChange: (id, createdAt, status) {
-        return Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            spacing: 12,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: _getStatusColor(status).withOpacity(0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  _getStatusIcon(status),
-                  size: 20,
-                  color: _getStatusColor(status),
-                ),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      status.label.isNotEmpty
-                          ? status.label
-                          : 'statusChange'.tr(),
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const Gap(2),
-                    Text(
-                      createdAt.toLocal().formatRelative(),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (status.isAutomated)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.secondaryContainer,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    spacing: 4,
-                    children: [
-                      Icon(
-                        Symbols.smart_toy,
-                        size: 14,
-                        color: theme.colorScheme.onSecondaryContainer,
-                      ),
-                      Text(
-                        'bot',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.onSecondaryContainer,
-                        ),
-                      ).tr(),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-        );
-      },
-      activity: (id, createdAt, activity) {
-        return Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            spacing: 12,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: _getActivityColor(activity.type).withOpacity(0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  _getActivityIcon(activity.type),
-                  size: 20,
-                  color: _getActivityColor(activity.type),
-                ),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      activity.title ?? 'unknown'.tr(),
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w500,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (activity.subtitle != null) ...[
-                      const Gap(2),
-                      Text(
-                        activity.subtitle!,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                    const Gap(2),
-                    Text(
-                      createdAt.toLocal().formatRelative(),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.tertiaryContainer,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  kPresenceActivityTypes[activity.type],
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onTertiaryContainer,
-                  ),
-                ).tr(),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Color _getStatusColor(SnAccountStatus status) {
-    switch (status.type) {
-      case SnAccountStatusType.busy:
-        return Colors.red;
-      case SnAccountStatusType.doNotDisturb:
-        return Colors.orange;
-      case SnAccountStatusType.invisible:
-        return Colors.grey;
-      default:
-        return Colors.green;
-    }
-  }
-
-  IconData _getStatusIcon(SnAccountStatus status) {
-    switch (status.type) {
-      case SnAccountStatusType.busy:
-        return Symbols.do_not_disturb_on;
-      case SnAccountStatusType.doNotDisturb:
-        return Symbols.mic_off;
-      case SnAccountStatusType.invisible:
-        return Symbols.visibility_off;
-      default:
-        return Symbols.circle;
-    }
-  }
-
-  Color _getActivityColor(int type) {
-    switch (type) {
-      case 1:
-        return Colors.purple;
-      case 2:
-        return Colors.green;
-      case 3:
-        return Colors.orange;
-      default:
-        return Colors.blue;
-    }
-  }
-
-  IconData _getActivityIcon(int type) {
-    switch (type) {
-      case 1:
-        return Symbols.play_arrow;
-      case 2:
-        return Symbols.music_note;
-      case 3:
-        return Symbols.fitness_center;
-      default:
-        return Symbols.category;
-    }
-  }
-}
-
 @riverpod
 Future<SnAccount> account(Ref ref, String uname) async {
   if (uname == 'me') {
@@ -1404,25 +1029,6 @@ Future<List<SnAccountBadge>> accountBadges(Ref ref, String uname) async {
   return List<SnAccountBadge>.from(
     resp.data.map((x) => SnAccountBadge.fromJson(x)),
   );
-}
-
-@riverpod
-Future<Color?> accountAppbarForcegroundColor(Ref ref, String uname) async {
-  try {
-    final account = await ref.watch(accountProvider(uname).future);
-    if (account.profile.background == null) return null;
-    final colors = await ColorExtractionService.getColorsFromImage(
-      CloudImageWidget.provider(
-        file: account.profile.background!,
-        serverUrl: ref.watch(serverUrlProvider),
-      ),
-    );
-    if (colors.isEmpty) return null;
-    final dominantColor = colors.first;
-    return dominantColor.computeLuminance() > 0.5 ? Colors.black : Colors.white;
-  } catch (_) {
-    return null;
-  }
 }
 
 @riverpod
@@ -1503,11 +1109,11 @@ class AccountTimelineNotifier
     with AsyncPaginationController<SnAccountTimelineItem> {
   static const int pageSize = 20;
 
-  late final String _uname;
+  final String arg;
+  AccountTimelineNotifier(this.arg);
 
   @override
   FutureOr<PaginationState<SnAccountTimelineItem>> build() async {
-    _uname = ref.watch(accountTimelineUnameProvider);
     final items = await fetch();
     return PaginationState(
       items: items,
@@ -1522,7 +1128,6 @@ class AccountTimelineNotifier
   @override
   Future<List<SnAccountTimelineItem>> fetch() async {
     final client = ref.read(apiClientProvider);
-    if (_uname.isEmpty) return [];
 
     final queryParams = {
       'offset': fetchedCount.toString(),
@@ -1530,57 +1135,18 @@ class AccountTimelineNotifier
     };
 
     final response = await client.get(
-      '/passport/accounts/$_uname/timeline',
+      '/passport/accounts/$arg/timeline',
       queryParameters: queryParams,
     );
 
     totalCount = int.parse(response.headers.value('X-Total') ?? '0');
 
-    final items = response.data.map<SnAccountTimelineItem>((json) {
-      final eventType = json['eventType'] as String?;
-      if (eventType == 'StatusChange' && json['status'] != null) {
-        return SnAccountTimelineItem.statusChange(
-          id: json['id'] as String,
-          createdAt: DateTime.parse(json['createdAt'] as String),
-          status: SnAccountStatus.fromJson(json['status']),
-        );
-      } else if (eventType == 'Activity' && json['activity'] != null) {
-        return SnAccountTimelineItem.activity(
-          id: json['id'] as String,
-          createdAt: DateTime.parse(json['createdAt'] as String),
-          activity: SnPresenceActivity.fromJson(json['activity']),
-        );
-      }
-      return SnAccountTimelineItem.statusChange(
-        id: json['id'] as String,
-        createdAt: DateTime.parse(json['createdAt'] as String),
-        status: SnAccountStatus(
-          id: '',
-          attitude: 0,
-          isOnline: false,
-          isCustomized: false,
-          label: '',
-          meta: null,
-          clearedAt: null,
-          accountId: '',
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-          deletedAt: null,
-        ),
-      );
-    }).toList();
-
-    return items;
+    return (response.data as List<dynamic>)
+        .map((e) => SnAccountTimelineItem.fromJson(e))
+        .cast<SnAccountTimelineItem>()
+        .toList();
   }
 }
-
-final accountTimelineUnameProvider = Provider.family<String, String>((
-  ref,
-  uname,
-) {
-  ref.keepAlive();
-  return uname;
-});
 
 @RoutePage()
 class AccountProfileScreen extends HookConsumerWidget {
@@ -1603,14 +1169,6 @@ class AccountProfileScreen extends HookConsumerWidget {
     final accountChat = ref.watch(accountDirectChatProvider(name));
     final accountRelationship = ref.watch(accountRelationshipProvider(name));
     final accountDeveloper = ref.watch(accountBotDeveloperProvider(name));
-
-    final appbarColor = ref.watch(accountAppbarForcegroundColorProvider(name));
-
-    final appbarShadow = Shadow(
-      color: appbarColor.value?.invert ?? Colors.transparent,
-      blurRadius: 5.0,
-      offset: Offset(1.0, 1.0),
-    );
 
     Future<void> relationshipAction() async {
       if (accountRelationship.value != null) return;
@@ -1686,54 +1244,40 @@ class AccountProfileScreen extends HookConsumerWidget {
         return AppScaffold(
           isNoBackground: false,
           appBar: isWideScreen(context)
-              ? AppBar(
-                  foregroundColor: appbarColor.value,
-                  leading: AutoLeadingButton(),
-                  title: Text(
-                    data.nick,
-                    style: TextStyle(
-                      color:
-                          appbarColor.value ??
-                          Theme.of(context).appBarTheme.foregroundColor,
-                      shadows: [appbarShadow],
-                    ),
-                  ),
-                )
+              ? AppBar(leading: AutoLeadingButton(), title: Text(data.nick))
               : null,
           body: isWideScreen(context)
               ? Row(
+                  spacing: 12,
                   children: [
                     Flexible(
                       flex: 4,
                       child: CustomScrollView(
                         slivers: [
                           SliverGap(16),
-                          SliverToBoxAdapter(
-                            child: _AccountTimelineWidget(uname: name),
-                          ),
+                          AccountTimelineList(uname: name),
                           SliverGap(MediaQuery.of(context).padding.bottom + 16),
                         ],
-                      ).padding(left: 8),
+                      ),
                     ),
                     Flexible(
                       flex: 3,
                       child: Align(
                         alignment: Alignment.topLeft,
                         child: SingleChildScrollView(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
+                            spacing: 12,
                             children: [
                               _AccountBasicInfo(
                                 data: data,
                                 uname: name,
                                 accountDeveloper: accountDeveloper,
-                              ).padding(horizontal: 4, top: 20),
+                              ),
                               if (data.badges.isNotEmpty)
                                 Card(
-                                  margin: EdgeInsets.symmetric(
-                                    horizontal: 4,
-                                    vertical: 8,
-                                  ),
+                                  margin: EdgeInsets.zero,
                                   child: Padding(
                                     padding: const EdgeInsets.all(20),
                                     child: BadgeList(badges: data.badges),
@@ -1755,24 +1299,13 @@ class AccountProfileScreen extends HookConsumerWidget {
                                       ),
                                     ),
                                 ],
-                              ).padding(horizontal: 4),
-                              _AccountProfileBio(
-                                data: data,
-                              ).padding(horizontal: 4),
-                              if (data.profile.links.isNotEmpty)
-                                _AccountProfileLinks(
-                                  data: data,
-                                ).padding(horizontal: 4),
+                              ),
                               if (data.contacts.any((c) => c.isPublic))
-                                _AccountProfileContacts(
-                                  data: data,
-                                ).padding(horizontal: 4),
-                              _AccountProfileDetail(
-                                data: data,
-                              ).padding(horizontal: 4),
+                                _AccountProfileContacts(data: data),
+                              _AccountProfileDetail(data: data),
                               _AccountPublisherList(
                                 publishers: accountPublishers.value ?? [],
-                              ).padding(horizontal: 4, vertical: 8),
+                              ),
                               if (user.value != null && !isCurrentUser)
                                 _AccountAction(
                                   data: data,
@@ -1783,17 +1316,11 @@ class AccountProfileScreen extends HookConsumerWidget {
                                   directMessageAction: directMessageAction,
                                 ).padding(horizontal: 4),
                               Card(
-                                margin: EdgeInsets.symmetric(
-                                  horizontal: 4,
-                                  vertical: 8,
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(20),
-                                  child: FortuneGraphWidget(
-                                    events: accountEvents,
-                                    eventCalandarUser: data.name,
-                                    margin: EdgeInsets.zero,
-                                  ),
+                                margin: EdgeInsets.zero,
+                                child: FortuneGraphWidget(
+                                  events: accountEvents,
+                                  eventCalandarUser: data.name,
+                                  margin: EdgeInsets.zero,
                                 ),
                               ),
                             ],
@@ -1802,38 +1329,20 @@ class AccountProfileScreen extends HookConsumerWidget {
                       ),
                     ),
                   ],
-                )
+                ).padding(horizontal: 12)
               : CustomScrollView(
                   slivers: [
                     SliverAppBar(
-                      foregroundColor: appbarColor.value,
-                      expandedHeight: 180,
                       pinned: true,
                       leading: AutoLeadingButton(),
+                      title: Text(data.nick),
                       flexibleSpace: Stack(
                         children: [
                           Positioned.fill(
-                            child: data.profile.background != null
-                                ? CloudImageWidget(
-                                    file: data.profile.background,
-                                  )
-                                : Container(
-                                    color: Theme.of(
-                                      context,
-                                    ).appBarTheme.backgroundColor,
-                                  ),
-                          ),
-                          FlexibleSpaceBar(
-                            title: Text(
-                              data.nick,
-                              style: TextStyle(
-                                color:
-                                    appbarColor.value ??
-                                    Theme.of(
-                                      context,
-                                    ).appBarTheme.foregroundColor,
-                                shadows: [appbarShadow],
-                              ),
+                            child: Container(
+                              color: Theme.of(
+                                context,
+                              ).appBarTheme.backgroundColor,
                             ),
                           ),
                         ],
@@ -1874,12 +1383,8 @@ class AccountProfileScreen extends HookConsumerWidget {
                                 ),
                             ],
                           ),
-                          _AccountProfileBio(data: data),
-                          if (data.profile.links.isNotEmpty)
-                            _AccountProfileLinks(data: data),
                           if (data.contacts.any((c) => c.isPublic))
                             _AccountProfileContacts(data: data),
-                          _AccountTimelineWidget(uname: name),
                           _AccountPublisherList(
                             publishers: accountPublishers.value ?? [],
                           ),
@@ -1904,7 +1409,11 @@ class AccountProfileScreen extends HookConsumerWidget {
                             ),
                           ),
                         ],
-                      ).padding(horizontal: 8, vertical: 8),
+                      ).padding(vertical: 8, horizontal: 8),
+                    ),
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      sliver: AccountTimelineList(uname: name),
                     ),
                   ],
                 ),
